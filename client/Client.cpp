@@ -68,7 +68,7 @@ Command Client::ReceiveCommand() const {
   recv(socket_, &data, 1, 0);
   switch (data) {
   case 1:
-    return Command::kTEST;
+    return Command::kINFO;
   case 2:
     return Command::kSCREEN;
   }
@@ -78,6 +78,7 @@ Command Client::ReceiveCommand() const {
 
 
 DWORD Thread(const LPVOID param) {
+  std::cout << "Connected\n";
   const Client *client = static_cast<Client *>(param);
   while (true) {
     Command command = client->ReceiveCommand();
@@ -85,8 +86,16 @@ DWORD Thread(const LPVOID param) {
       break;
     }
     switch (command) {
-    case Command::kTEST: {
-      while (!client->SendMessage("Pong", 4)) {};
+    case Command::kINFO: {
+      DWORD domain_size;
+      DWORD user_size;
+      TCHAR buf[ MAX_PATH ];
+      GetComputerNameEx(ComputerNameDnsFullyQualified, buf, &domain_size);
+      GetUserName(buf + (domain_size) + 1, &user_size);
+      buf[domain_size] = L'.';
+      const DWORD size = (domain_size + user_size + 1) * sizeof(TCHAR);
+      while (!client->SendMessage(reinterpret_cast<const char *>(&size), 4)) {};
+      while (!client->SendMessage(reinterpret_cast<char *>(&buf), size)) {};
       break;
     }
     case Command::kSCREEN: {
@@ -94,7 +103,6 @@ DWORD Thread(const LPVOID param) {
       STATSTG stats;
       file->Stat(&stats, 0);
       auto size = stats.cbSize.QuadPart;
-      std::cout << std::hex << size;
       while (!client->SendMessage(reinterpret_cast<char *>(&size), 8)) {};
       constexpr int chunk_size = 1024;
       char *data = new char[chunk_size];
@@ -103,7 +111,6 @@ DWORD Thread(const LPVOID param) {
         file->Read(data, chunk_size, &read_bytes);
         while (!client->SendMessage(data, read_bytes)) {};
         i += read_bytes;
-        std::cout << '.' << read_bytes << '\n';
       }
       std::cout << "end";
       break;

@@ -7,7 +7,7 @@
 class Command {
 public:
   enum Type {
-    kTEST,
+    kINFO,
     kSCREEN,
     kERR
   };

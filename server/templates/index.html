@@ -1,0 +1,30 @@
+<!--<title>TEST</title>
+<ul>
+    {% for session in sessions %}
+    <li>domain: {{ session.domain }}; machine: {{ session.machine }}; user: {{ session.user }}; ip: {{ session.ip }}</li>
+    {% endfor %}
+</ul>-->
+<title>Sessions</title>
+
+<table border="1" style="width:100%">
+    <thead>
+    <tr>
+        <th>Domain</th>
+        <th>Machine</th>
+        <th>User</th>
+        <th>IP</th>
+        <th>Screenshot</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for session in sessions %}
+    <tr>
+        <td>{{ session.domain }}</td>
+        <td>{{ session.machine }}</td>
+        <td>{{ session.user }}</td>
+        <td>{{ session.ip }}</td>
+        <td><a href="/image/{{ session.id }}">Link</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
