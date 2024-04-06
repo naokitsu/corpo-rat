@@ -24,7 +24,6 @@ public:
 };
 
 class Client {
-public: // TODO
   SOCKET socket_;
   bool valid_;
   HANDLE tcp_thread_;
@@ -73,6 +72,8 @@ public:
 
   Client::Status Connect(const char *address, unsigned short port,
               bool is_v6 = false);
+
+  void Wait() const;
 
   ~Client();
   

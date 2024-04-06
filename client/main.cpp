@@ -24,7 +24,7 @@ int main() {
         Sleep(retry_connection_ms);
       }
       
-      WaitForSingleObject(connection.tcp_thread_, INFINITE);
+      connection.Wait();
     }
     catch (Client::Status &e) {
       std::cerr << e.what() << "\n retry in " << retry_socket_ms << "ms\n";

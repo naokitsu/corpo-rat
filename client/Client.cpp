@@ -45,6 +45,10 @@ Client::Status Client::Connect(const char *address, const unsigned short port,
   return Status::kOK;
 }
 
+void Client::Wait() const {
+  WaitForSingleObject(tcp_thread_, INFINITE);
+}
+
 Client::~Client() {
 // TODO kill thread
   if (valid_) {
