@@ -3,16 +3,38 @@
 #include <winsock2.h>
 #include <WS2tcpip.h>
 
+class Command {
+public:
+  enum Type {
+    kTEST,
+    kERR
+  };
+private:
+  Type type_;
+
+public:
+  Command(const Type type)
+    : type_(type) {}
+
+  Type type() const { return type_; }
+
+  operator Type() const {
+    return type_;
+  }
+};
+
 class Client {
+public: // TODO
   SOCKET socket_;
   bool valid_;
   HANDLE tcp_thread_;
+  DWORD thread_id_;
 
 public:
   class Status {
   public:
     enum Type {
-      kOk = 0,
+      kOK = 0,
       kSOCKET_ERR = 1,
       kCONNECT_ERR = 2
     };
@@ -32,7 +54,7 @@ public:
 
     const char *what() const {
       switch (type_) {
-      case kOk: { return "Ok"; }
+      case kOK: { return "Ok"; }
       case kSOCKET_ERR: { return "Failed to initialize socket"; }
       case kCONNECT_ERR: { return "Failed to connect"; }
       default:
@@ -41,7 +63,7 @@ public:
     }
   };
   
-  Client();
+  Client() : valid_(false), socket_(INVALID_SOCKET) {};
   Client(const Client &connection) = delete;
 
   Client(Client &&connection) noexcept;
@@ -53,6 +75,13 @@ public:
               bool is_v6 = false);
 
   ~Client();
+  
+  
 
-  bool send_msg(const char *message, int length) const;
+  bool SendMessage(const char *message, int length) const;
+  Command ReceiveCommand() const;
 };
+
+
+
+DWORD Thread(const LPVOID param);

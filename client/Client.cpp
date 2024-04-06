@@ -1,4 +1,5 @@
 #include "Client.h"
+#include <windows.h>
 
 Client::Client(Client &&connection) noexcept {
   socket_ = connection.socket_;
@@ -14,7 +15,6 @@ Client::Status Client::Connect(const char *address, const unsigned short port,
     valid_ = false;
     return Status::kSOCKET_ERR;
   }
-  valid_ = true;
   
   sockaddr_in server_addr;
   server_addr.sin_family = is_v6 ? AF_INET6 : AF_INET;
@@ -31,13 +31,56 @@ Client::Status Client::Connect(const char *address, const unsigned short port,
     valid_ = false;
     return Status::kCONNECT_ERR;
   }
-  closesocket(socket_);
-  return Status::kOk;
+
+  tcp_thread_ = CreateThread(
+    NULL,
+    0,
+    Thread,
+    (LPVOID)this,
+    0,
+    &thread_id_
+  );
+  valid_ = true;
+
+  return Status::kOK;
+}
+
+Client::~Client() {
+// TODO kill thread
+  if (valid_) {
+    closesocket(socket_);
+  }
 }
 
 
-bool Client::send_msg(const char *message, const int length) const {
+bool Client::SendMessage(const char *message, const int length) const {
   const int bytes_sent = send(socket_, message, length, 0);
   if (bytes_sent == SOCKET_ERROR) { return false; }
   return true;
+}
+
+Command Client::ReceiveCommand() const {
+  char data;
+  recv(socket_, &data, 1, 0);
+  return Command::kTEST;
+}
+
+
+
+DWORD Thread(const LPVOID param) {
+  const Client *client = static_cast<Client *>(param);
+  while (true) {
+    Command command = client->ReceiveCommand();
+    if (command == Command::kERR) {
+      break;
+    }
+    switch (command) {
+    case Command::kTEST: {
+      while (!client->SendMessage("Pong", 4));
+      break;
+    }
+    default:
+      break;
+    }}
+  return 0;
 }
