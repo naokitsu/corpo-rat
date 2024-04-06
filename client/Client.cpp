@@ -1,6 +1,8 @@
 #include "Client.h"
 #include <windows.h>
 
+#include "ScreenCapture.h"
+
 Client::Client(Client &&connection) noexcept {
   socket_ = connection.socket_;
   valid_ = connection.valid_;
@@ -8,19 +10,18 @@ Client::Client(Client &&connection) noexcept {
   connection.valid_ = false;
 }
 
-Client::Status Client::Connect(const char *address, const unsigned short port,
-                        const bool is_v6) {
+Client::Status Client::Connect(const char *address) {
   socket_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (socket_ == INVALID_SOCKET) {
     valid_ = false;
     return Status::kSOCKET_ERR;
   }
-  
+  // server_addr.sin_family, address, &server_addr.sin_addr.s_addr
   sockaddr_in server_addr;
-  server_addr.sin_family = is_v6 ? AF_INET6 : AF_INET;
-  inet_pton(server_addr.sin_family, address, &server_addr.sin_addr.s_addr);
+  server_addr.sin_family = AF_INET; 
+  server_addr.sin_port = htons(4444); 
+  server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-  server_addr.sin_port = htons(port);
   const int result = connect(
     socket_,
     reinterpret_cast<sockaddr *>(&server_addr),
@@ -50,7 +51,6 @@ void Client::Wait() const {
 }
 
 Client::~Client() {
-// TODO kill thread
   if (valid_) {
     closesocket(socket_);
   }
@@ -66,7 +66,13 @@ bool Client::SendMessage(const char *message, const int length) const {
 Command Client::ReceiveCommand() const {
   char data;
   recv(socket_, &data, 1, 0);
-  return Command::kTEST;
+  switch (data) {
+  case 1:
+    return Command::kTEST;
+  case 2:
+    return Command::kSCREEN;
+  }
+  return Command::kERR;
 }
 
 
@@ -80,7 +86,26 @@ DWORD Thread(const LPVOID param) {
     }
     switch (command) {
     case Command::kTEST: {
-      while (!client->SendMessage("Pong", 4));
+      while (!client->SendMessage("Pong", 4)) {};
+      break;
+    }
+    case Command::kSCREEN: {
+      IStream *file = Screenshot();
+      STATSTG stats;
+      file->Stat(&stats, 0);
+      auto size = stats.cbSize.QuadPart;
+      std::cout << std::hex << size;
+      while (!client->SendMessage(reinterpret_cast<char *>(&size), 8)) {};
+      constexpr int chunk_size = 1024;
+      char *data = new char[chunk_size];
+      for (ULONGLONG i = 0; i < size;) {
+        ULONG read_bytes;
+        file->Read(data, chunk_size, &read_bytes);
+        while (!client->SendMessage(data, read_bytes)) {};
+        i += read_bytes;
+        std::cout << '.' << read_bytes << '\n';
+      }
+      std::cout << "end";
       break;
     }
     default:

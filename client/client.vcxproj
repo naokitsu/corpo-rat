@@ -130,9 +130,11 @@
     <ItemGroup>
         <ClCompile Include="main.cpp" />
         <ClCompile Include="Client.cpp" />
+        <ClCompile Include="ScreenCapture.cpp" />
     </ItemGroup>
     <ItemGroup>
         <ClInclude Include="Client.h" />
+        <ClInclude Include="ScreenCapture.h" />
     </ItemGroup>
     <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
     <ImportGroup Label="ExtensionTargets">

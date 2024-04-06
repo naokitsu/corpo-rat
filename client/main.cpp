@@ -1,24 +1,35 @@
 #include <iostream>
+
+//#include <stdafx.h>
+#include <windows.h>
+#include <objidl.h>
+#include <gdiplus.h>
+
 #include "Client.h"
+#include "ScreenCapture.h"
 
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment (lib,"Gdiplus.lib")
+
 
 int main() {
   constexpr int retry_connection_ms = 3000;
   constexpr int retry_socket_ms = 3000;
 
   WSADATA wsa_data;
-
-  if (WSAStartup(MAKEWORD(2, 1), &wsa_data) != 0) {
+    if (WSAStartup(MAKEWORD(2, 1), &wsa_data) != 0) {
     std::cerr << "Unable to init Windows Sockets";
     return 1;
+  }
+  {
+    Screenshot();
   }
 
   while (true) {
     try {
       Client connection;
 
-      while (connection.Connect("127.0.0.1", 4444) != Client::Status::kOK) {
+      while (connection.Connect("127.0.0.1:4444") != Client::Status::kOK) {
         std::cerr << "Failed to connect, retry in " << retry_connection_ms <<
           "ms\n";
         Sleep(retry_connection_ms);

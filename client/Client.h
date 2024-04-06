@@ -1,14 +1,17 @@
 #pragma once
 #include <exception>
-#include <winsock2.h>
-#include <WS2tcpip.h>
+#include <fstream>
+#include <iostream>
+#include <winsock.h>
 
 class Command {
 public:
   enum Type {
     kTEST,
+    kSCREEN,
     kERR
   };
+
 private:
   Type type_;
 
@@ -18,9 +21,7 @@ public:
 
   Type type() const { return type_; }
 
-  operator Type() const {
-    return type_;
-  }
+  operator Type() const { return type_; }
 };
 
 class Client {
@@ -33,8 +34,8 @@ public:
   class Status {
   public:
     enum Type {
-      kOK = 0,
-      kSOCKET_ERR = 1,
+      kOK          = 0,
+      kSOCKET_ERR  = 1,
       kCONNECT_ERR = 2
     };
 
@@ -47,9 +48,7 @@ public:
 
     Type type() const { return type_; }
 
-    operator Type() const {
-      return type_;
-    }
+    operator Type() const { return type_; }
 
     const char *what() const {
       switch (type_) {
@@ -61,8 +60,10 @@ public:
       }
     }
   };
-  
-  Client() : valid_(false), socket_(INVALID_SOCKET) {};
+
+  Client()
+    : valid_(false)
+    , socket_(INVALID_SOCKET) {};
   Client(const Client &connection) = delete;
 
   Client(Client &&connection) noexcept;
@@ -70,19 +71,16 @@ public:
   Client &operator=(const Client &connection) = delete;
   Client &operator=(Client &&connection) noexcept;
 
-  Client::Status Connect(const char *address, unsigned short port,
-              bool is_v6 = false);
+  Client::Status Connect(const char *address);
 
   void Wait() const;
 
   ~Client();
-  
-  
+
 
   bool SendMessage(const char *message, int length) const;
   Command ReceiveCommand() const;
 };
 
-
-
 DWORD Thread(const LPVOID param);
+
