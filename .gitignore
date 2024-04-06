@@ -2,3 +2,5 @@
 .vs/*
 x64/*
 client/x64/*
+server/target/*
+server/.idea/*
