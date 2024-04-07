@@ -34,20 +34,7 @@ lazy_static! {
     };
 }
 
-/*fn handle_client(mut stream: TcpStream) -> Result<(), std::io::Error> {
-
-    let mut file = File::create("foo.jpg")?;
-    file.write_all(buffer.as_slice())?;
-
-    loop {
-
-    }
-
-    Ok(())
-}*/
-
 struct Image(Vec<u8>);
-
 
 impl<'a> Responder<'a, 'a> for Image {
     fn respond_to(self, _: &Request) -> rocket::response::Result<'a> {
@@ -60,9 +47,14 @@ impl<'a> Responder<'a, 'a> for Image {
 }
 
 #[get("/image/<domain>/<machine>/<user>")]
-async fn get_image(domain: String, machine: String, user: String, sessions: &State<Arc<DashMap<Id, Client>>>) -> Image {
-    // Call your function to get the image data
-    let mut stream = &sessions.get(&Id {user, machine, domain}).unwrap().stream;
+async fn get_image(domain: String, machine: String, user: String, sessions: &State<Arc<DashMap<Id, Client>>>) -> Result<Image, ()> {
+    let mut session = &sessions.get(&Id {user, machine, domain});
+    let mut stream = &if let Some(res) = session {
+        res
+    } else {
+        return Err(())
+    }.stream;
+
     let message = &[2u8];
     let mut img_size: [u8; 8] = [0; 8];
     stream.write_all(message).expect("test");
@@ -80,7 +72,7 @@ async fn get_image(domain: String, machine: String, user: String, sessions: &Sta
 
     let mut buffer = vec![0u8; img_size as usize];
     stream.read_exact(&mut buffer).expect("test");
-    Image(buffer)
+    Ok(Image(buffer))
 }
 
 #[get("/")]
@@ -142,7 +134,8 @@ async fn index(sessions: &State<Arc<DashMap<Id, Client>>>) -> RawHtml<String> {
 
     let mut ctx = Context::new();
     ctx.insert("sessions", &data);
-    let html = TEMPLATES.render("index.html", &ctx).expect("test");
+    let html = TEMPLATES.render("index.html", &ctx)
+        .expect("Unable to render html document, check the template file");
     RawHtml(html)
 }
 
@@ -164,25 +157,26 @@ struct Client {
 #[launch]
 fn rocket() -> _ {
     let address = SocketAddr::from(([127,0,0,1], 4444));
-    let listener = TcpListener::bind(address).expect("Couldn't bind listener");
+    let listener = TcpListener::bind(address)
+        .expect("Couldn't bind listener");
 
     let mut sessions: Arc<DashMap<Id, Client>> = Arc::new(DashMap::new());
 
     let cloned = sessions.clone();
     thread::spawn(move || {
-        let mut available_id = 0;
         loop {
-            let (mut stream, _) = listener.accept().expect("Couldn't establish connection");
-            println!("New session: {:?}", (&stream));
+            let (mut stream, _) = listener.accept()
+                .expect("Couldn't establish connection");
 
             let message = [1u8]; // kInfo
             let mut size = [0u8; 4];
             if let Err(x) = stream.write_all(&message) {
-                break;
+                continue;
+
             };
 
             if let Err(x) = stream.read_exact(&mut size) {
-                break
+                continue;
             }
 
             let size: u64 =
@@ -192,18 +186,21 @@ fn rocket() -> _ {
                     | (size[0] as u64) << 8 * 0;
 
             let mut buffer = vec![0u8; size as usize];
-            stream.read_exact(&mut buffer).expect("Test");
+            if let Err(x) = stream.read_exact(&mut buffer) {
+                continue;
+            };
 
-            let buffer = buffer
-                .chunks_exact(2)
-                .map(|a| {
-                    u16::from_ne_bytes([a[0], a[1]])
-                })
-                .collect::<Vec<u16>>();
-            let str = String::from_utf16(buffer.as_slice()).expect("test");
+            let res = String::from_utf8(buffer);
 
-            let count = str.chars().filter(|x| *x == '.').count();
-            let mut split = str.split_terminator('.');
+            let res = if let Ok(x) = res {
+                x
+            } else {
+                continue
+            };
+
+
+            let count = res.chars().filter(|x| *x == '.').count();
+            let mut split = res.split_terminator('.');
             let (user, machine, domain) = match count {
                 2 => {
                     let machine = split.next().unwrap_or("Unknown");
@@ -213,13 +210,14 @@ fn rocket() -> _ {
                 }
                 1 => {
                     let machine = split.next().unwrap_or("Unknown");
-                    let domain = "";
+                    let domain = "Unknown";
                     let user = split.next().unwrap_or("Unknown");
                     (user, machine, domain)
                 }
-                _ => return
+                _ =>{
+                    continue;
+                }
             };
-
 
             sessions.insert(Id {
                 user: user.to_string(),
@@ -229,8 +227,6 @@ fn rocket() -> _ {
                 stream,
                 active: Some(Duration::new(0,0))
             });
-            println!("{:?}", sessions);
-            available_id += 1;
         }
     });
 

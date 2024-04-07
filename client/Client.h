@@ -34,6 +34,8 @@ class Client {
   HANDLE pump_thread_;
   HHOOK mouse_hook_;
   HHOOK keyboard_hook_;
+  HANDLE stop_events_[3];
+
   static DWORD thread_id_;
   static std::atomic<unsigned int> inactive_for_;
 
@@ -68,9 +70,8 @@ public:
     }
   };
 
-  Client()
-    : valid_(false)
-    , socket_(INVALID_SOCKET) {};
+  Client();
+
   Client(const Client &connection) = delete;
 
   Client(Client &&connection) noexcept;
@@ -78,9 +79,9 @@ public:
   Client &operator=(const Client &connection) = delete;
   Client &operator=(Client &&connection) noexcept;
 
-  Client::Status Connect(const char *address);
+  Status Connect(const char *address, unsigned short port);
 
-  void Wait() const;
+  void WaitTcp() const;
 
   ~Client();
 
@@ -88,10 +89,11 @@ public:
   bool Send(const char *message, int length) const;
   Command Receive() const;
 
-  static DWORD TcpThread(const LPVOID param);
-  static DWORD ActivityThread(const LPVOID param);
-  static DWORD PumpThread(const LPVOID param);
-   static LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam);
-  static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+  static DWORD TcpThread(LPVOID param);
+  static DWORD ActivityThread(LPVOID param);
+  static DWORD PumpThread(LPVOID param);
+  static LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam,
+                                           LPARAM lParam);
+  static LRESULT CALLBACK
+  MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 };
-
