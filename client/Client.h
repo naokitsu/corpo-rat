@@ -4,11 +4,13 @@
 #include <iostream>
 #include <winsock.h>
 
+
 class Command {
 public:
   enum Type {
     kINFO,
     kSCREEN,
+    kACTIVITY,
     kERR
   };
 
@@ -28,7 +30,12 @@ class Client {
   SOCKET socket_;
   bool valid_;
   HANDLE tcp_thread_;
-  DWORD thread_id_;
+  HANDLE activity_tracker_;
+  HANDLE pump_thread_;
+  HHOOK mouse_hook_;
+  HHOOK keyboard_hook_;
+  static DWORD thread_id_;
+  static std::atomic<unsigned int> inactive_for_;
 
 public:
   class Status {
@@ -36,7 +43,7 @@ public:
     enum Type {
       kOK          = 0,
       kSOCKET_ERR  = 1,
-      kCONNECT_ERR = 2
+      kCONNECT_ERR = 3,
     };
 
   private:
@@ -78,9 +85,13 @@ public:
   ~Client();
 
 
-  bool SendMessage(const char *message, int length) const;
-  Command ReceiveCommand() const;
-};
+  bool Send(const char *message, int length) const;
+  Command Receive() const;
 
-DWORD Thread(const LPVOID param);
+  static DWORD TcpThread(const LPVOID param);
+  static DWORD ActivityThread(const LPVOID param);
+  static DWORD PumpThread(const LPVOID param);
+   static LRESULT CALLBACK KeyboardHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+  static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+};
 

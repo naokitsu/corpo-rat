@@ -7,6 +7,8 @@ use std::io::{Cursor, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, SystemTime};
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use rocket::http::{ContentType, Status};
@@ -57,10 +59,10 @@ impl<'a> Responder<'a, 'a> for Image {
     }
 }
 
-#[get("/image/<id>")]
-async fn get_image(id: u32, sessions: &State<Arc<DashMap<u32, Client>>>) -> Image {
+#[get("/image/<domain>/<machine>/<user>")]
+async fn get_image(domain: String, machine: String, user: String, sessions: &State<Arc<DashMap<Id, Client>>>) -> Image {
     // Call your function to get the image data
-    let mut stream = &sessions.get(&id).unwrap().stream;
+    let mut stream = &sessions.get(&Id {user, machine, domain}).unwrap().stream;
     let message = &[2u8];
     let mut img_size: [u8; 8] = [0; 8];
     stream.write_all(message).expect("test");
@@ -82,27 +84,61 @@ async fn get_image(id: u32, sessions: &State<Arc<DashMap<u32, Client>>>) -> Imag
 }
 
 #[get("/")]
-async fn index(sessions: &State<Arc<DashMap<u32, Client>>>) -> RawHtml<String> {
+async fn index(sessions: &State<Arc<DashMap<Id, Client>>>) -> RawHtml<String> {
     #[derive(Serialize)]
-    struct DisplayClient {
-        id: u32,
+    struct DisplayedClient {
         ip: String,
         user: String,
         machine: String,
-        domain: String
+        domain: String,
+        time: String,
     };
 
-    let data = sessions.iter()
+    sessions
+        .iter_mut()
+        .for_each(|mut x| {
+            let message = &[3u8]; // activity
+            let mut stream = &x.value().stream;
+            let mut buf = [0u8; 4];
+            x.value_mut().active = Ok::<_, ()>(stream)
+                .and_then(|mut stream| {
+                    stream.write_all(message).map_err(|_|())?;
+                    Ok(stream)
+                })
+                .and_then(|mut stream| {
+                    let mut buf = [0u8; 4];
+                    stream.read_exact(&mut buf).map_err(|_|())?;
+                    let seconds: u64 =
+                        (buf[3] as u64 ) << 8 * 3
+                            | (buf[2] as u64) << 8 * 2
+                            | (buf[1] as u64) << 8 * 1
+                            | (buf[0] as u64) << 8 * 0;
+
+                    Ok(Duration::from_secs(seconds))
+                })
+                .ok();
+        });
+
+    sessions
+        .retain(|x, y| y.active != None);
+
+    let now = SystemTime::now();
+
+    let data = sessions
+        .iter()
         .map(|x| {
-            DisplayClient {
-                id: x.id,
-                ip: x.stream.peer_addr().map(|x| x.to_string()).unwrap_or("Unknown".to_string()),
-                user: x.user.clone(),
-                machine: x.machine.clone(),
-                domain: x.domain.clone(),
+            let (id, client) = x.pair();
+            let absolute_time = now - client.active.unwrap_or(Duration::new(0, 0));
+            let datetime: DateTime<Utc> = DateTime::from(absolute_time);
+            DisplayedClient {
+                ip: client.stream.peer_addr().map(|x| x.to_string()).unwrap_or("Unknown".to_string()),
+                user: id.user.clone(),
+                machine: id.machine.clone(),
+                domain: id.domain.clone(),
+                time: datetime.format("%d/%m/%Y %T").to_string()
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<Vec<DisplayedClient>>();
 
     let mut ctx = Context::new();
     ctx.insert("sessions", &data);
@@ -110,12 +146,19 @@ async fn index(sessions: &State<Arc<DashMap<u32, Client>>>) -> RawHtml<String> {
     RawHtml(html)
 }
 
-struct Client {
-    id: u32,
-    stream: TcpStream,
+#[derive(Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+struct Id {
     user: String,
     machine: String,
     domain: String
+}
+
+
+
+#[derive(Debug)]
+struct Client {
+    stream: TcpStream,
+    active: Option<Duration>,
 }
 
 #[launch]
@@ -123,8 +166,7 @@ fn rocket() -> _ {
     let address = SocketAddr::from(([127,0,0,1], 4444));
     let listener = TcpListener::bind(address).expect("Couldn't bind listener");
 
-    let mut available_id = 0;
-    let mut sessions: Arc<DashMap<u32, Client>> = Arc::new(DashMap::new());
+    let mut sessions: Arc<DashMap<Id, Client>> = Arc::new(DashMap::new());
 
     let cloned = sessions.clone();
     thread::spawn(move || {
@@ -178,13 +220,16 @@ fn rocket() -> _ {
                 _ => return
             };
 
-            sessions.insert(available_id, Client {
-                id: available_id,
-                stream,
+
+            sessions.insert(Id {
                 user: user.to_string(),
                 machine: machine.to_string(),
                 domain: domain.to_string(),
+            }, Client {
+                stream,
+                active: Some(Duration::new(0,0))
             });
+            println!("{:?}", sessions);
             available_id += 1;
         }
     });

@@ -9,3 +9,4 @@ dashmap = "5.5.3"
 tera = "1"
 lazy_static = "1.4.0"
 serde = { version = "1.0.197", features = ["derive"] }
+chrono = "0.4.37"

@@ -21,10 +21,7 @@ int main() {
     std::cerr << "Unable to init Windows Sockets";
     return 1;
   }
-  {
-    Screenshot();
-  }
-
+  
   while (true) {
     try {
       Client connection;

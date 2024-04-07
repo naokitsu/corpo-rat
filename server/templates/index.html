@@ -13,6 +13,7 @@
         <th>Machine</th>
         <th>User</th>
         <th>IP</th>
+        <th>Last Active</th>
         <th>Screenshot</th>
     </tr>
     </thead>
@@ -23,7 +24,8 @@
         <td>{{ session.machine }}</td>
         <td>{{ session.user }}</td>
         <td>{{ session.ip }}</td>
-        <td><a href="/image/{{ session.id }}">Link</a></td>
+        <td>{{ session.time }}</td>
+        <td><a href="/image/{{ session.domain }}/{{ session.machine }}/{{ session.user }}">Link</a></td>
     </tr>
     {% endfor %}
     </tbody>
