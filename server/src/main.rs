@@ -1,12 +1,13 @@
+#![feature(str_from_utf16_endian)]
 #[macro_use] extern crate rocket;
 extern crate tera;
 
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Cursor, ErrorKind, Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream};
 use std::sync::Arc;
-use std::thread;
+use std::{env, thread};
 use std::time::{Duration, SystemTime};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
@@ -156,7 +157,11 @@ struct Client {
 
 #[launch]
 fn rocket() -> _ {
-    let address = SocketAddr::from(([127,0,0,1], 4444));
+    let mut args = env::args();
+    args.next();
+
+    let ip = Ipv4Addr::from(args.next().unwrap_or("0.0.0.0".to_string()).parse().unwrap_or(Ipv4Addr::new(0,0,0,0)));
+    let address = SocketAddrV4::new(ip, args.next().unwrap_or("4444".to_string()).parse().unwrap_or(4444));
     let listener = TcpListener::bind(address)
         .expect("Couldn't bind listener");
 
@@ -186,19 +191,17 @@ fn rocket() -> _ {
                     | (size[0] as u64) << 8 * 0;
 
             let mut buffer = vec![0u8; size as usize];
+
             if let Err(x) = stream.read_exact(&mut buffer) {
                 continue;
             };
 
-            let res = String::from_utf8(buffer);
-
-            let res = if let Ok(x) = res {
+            let res = if let Ok(x) = String::from_utf8(buffer) {
                 x
             } else {
-                continue
+                continue;
             };
-
-
+            
             let count = res.chars().filter(|x| *x == '.').count();
             let mut split = res.split_terminator('.');
             let (user, machine, domain) = match count {

@@ -17,7 +17,7 @@ bool Startup::IsSet() {
     &result
   );
   if (status == ERROR_SUCCESS) {
-    status = RegQueryValueExW(
+    status = RegQueryValueEx(
       result,
       startup_name_,
       nullptr,
@@ -32,7 +32,6 @@ bool Startup::IsSet() {
 
 bool Startup::Set(PCWSTR path, PCWSTR address, PCWSTR port) {
   HKEY result = nullptr;
-  DWORD dwSize;
 
   constexpr size_t size = MAX_PATH * 2;
   wchar_t data[size] = {};
@@ -49,7 +48,7 @@ bool Startup::Set(PCWSTR path, PCWSTR address, PCWSTR port) {
   cursor += 1;
   wcscat_s(cursor, size, port);
 
-  LSTATUS status = RegCreateKeyExW(
+  LSTATUS status = RegCreateKeyEx(
     HKEY_CURRENT_USER,
     LR"(Software\Microsoft\Windows\CurrentVersion\Run)",
     0,
@@ -64,14 +63,14 @@ bool Startup::Set(PCWSTR path, PCWSTR address, PCWSTR port) {
   bool success = status == 0;
 
   if (success) {
-    dwSize = (wcslen(data) + 1) * 2;
-    status = RegSetValueExW(
+    DWORD dwsize = (wcslen(data) + 1) * 2;
+    status = RegSetValueEx(
       result,
       startup_name_,
       0,
       REG_SZ,
       reinterpret_cast<BYTE *>(data),
-      dwSize
+      dwsize
       );
     success = status == 0;
   }

